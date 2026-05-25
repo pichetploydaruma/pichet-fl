@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pichet Control FL - Forklift Energy Management</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0a0a0a;color:#e0e0e0;font-family:'Courier New',Courier,monospace;font-size:16px}
+  .header{background:#111;border-bottom:2px solid #00ff9d44;padding:16px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+  .logo{display:flex;align-items:center;gap:14px}
+  .logo-icon{width:48px;height:48px;background:#00ff9d18;border:1px solid #00ff9d66;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:26px}
+  .logo-text h1{font-size:22px;font-weight:700;color:#00ff9d;letter-spacing:3px}
+  .logo-text p{font-size:13px;color:#555;letter-spacing:2px;margin-top:4px}
+  .header-right{text-align:right}
+  .hdate{font-size:14px;color:#00ff9d88}
+  .htime{font-size:26px;font-weight:700;color:#fff;letter-spacing:3px}
+  .nav{background:#0e0e0e;border-bottom:1px solid #1e1e1e;display:flex;overflow-x:auto}
+  .nav-btn{background:none;border:none;border-bottom:2px solid transparent;color:#666;font-size:15px;letter-spacing:1px;padding:15px 24px;cursor:pointer;white-space:nowrap;font-family:'Courier New',monospace;transition:all .2s;display:flex;align-items:center;gap:8px}
+  .nav-btn.active{color:#00ff9d;border-bottom-color:#00ff9d;background:#00ff9d0a}
+  .nav-btn:hover:not(.active){color:#aaa;background:#ffffff06}
+  .content{padding:24px;max-width:1400px;margin:0 auto}
+  .section{display:none}
+  .section.active{display:block}
+  .grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px}
+  .metric-card{background:#111;border:1px solid #222;border-radius:8px;padding:20px;position:relative;overflow:hidden}
+  .metric-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+  .metric-card.green::before{background:#00ff9d}
+  .metric-card.blue::before{background:#00aaff}
+  .metric-card.amber::before{background:#ffaa00}
+  .metric-card.red::before{background:#ff4444}
+  .metric-label{font-size:13px;color:#666;letter-spacing:1px;margin-bottom:10px}
+  .metric-value{font-size:34px;font-weight:700;color:#fff;line-height:1}
+  .metric-unit{font-size:13px;color:#555;margin-top:6px}
+  .card{background:#111;border:1px solid #1e1e1e;border-radius:8px;padding:22px;margin-bottom:16px}
+  .card-title{font-size:15px;color:#00ff9d;letter-spacing:2px;margin-bottom:18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #1a1a1a;padding-bottom:14px}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+  .form-group{display:flex;flex-direction:column;gap:7px}
+  .form-group label{font-size:13px;color:#666;letter-spacing:1px}
+  select,input[type="text"],input[type="number"],input[type="date"],input[type="time"],input[type="month"]{
+    background:#0a0a0a;border:1px solid #2e2e2e;border-radius:5px;color:#e0e0e0;
+    padding:11px 14px;font-size:15px;font-family:'Courier New',monospace;width:100%;outline:none;transition:border .2s}
+  select:focus,input:focus{border-color:#00ff9d66}
+  input[readonly]{color:#00ff9d;border-color:#00ff9d22;background:#00ff9d08}
+  .btn{background:#00ff9d12;border:1px solid #00ff9d44;color:#00ff9d;padding:11px 24px;border-radius:5px;
+    cursor:pointer;font-size:14px;letter-spacing:1px;font-family:'Courier New',monospace;transition:all .2s;display:inline-flex;align-items:center;gap:8px}
+  .btn:hover{background:#00ff9d22;border-color:#00ff9d88}
+  .btn-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}
+  .btn-secondary{background:#ffffff08;border:1px solid #333;color:#aaa}
+  .btn-secondary:hover{background:#ffffff14;border-color:#666;color:#fff}
+  .btn-danger{background:#ff444412;border:1px solid #ff444444;color:#ff6666}
+  .btn-danger:hover{background:#ff444422;border-color:#ff444488}
+  .btn-excel{background:#1a6b1a18;border:1px solid #2a8a2a55;color:#4caf50}
+  .btn-excel:hover{background:#1a6b1a30;border-color:#4caf5088}
+  .table-wrap{overflow-x:auto;border-radius:6px}
+  table{width:100%;border-collapse:collapse;font-size:14px;min-width:600px}
+  th{background:#161616;color:#666;font-weight:600;letter-spacing:1px;padding:12px 14px;text-align:left;border-bottom:1px solid #222;white-space:nowrap}
+  td{padding:11px 14px;border-bottom:1px solid #191919;color:#ddd;white-space:nowrap}
+  tr:hover td{background:#ffffff04}
+  .badge{display:inline-block;padding:4px 12px;border-radius:3px;font-size:13px;letter-spacing:1px;font-weight:500}
+  .badge-green{background:#00ff9d15;color:#00ff9d;border:1px solid #00ff9d33}
+  .badge-blue{background:#00aaff15;color:#00aaff;border:1px solid #00aaff33}
+  .badge-amber{background:#ffaa0015;color:#ffaa00;border:1px solid #ffaa0033}
+  .chart-wrap{position:relative;width:100%;height:320px;margin-top:10px}
+  .filter-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px}
+  .filter-group{display:flex;flex-direction:column;gap:6px}
+  .filter-group label{font-size:13px;color:#666;letter-spacing:1px}
+  .filter-group select,.filter-group input{width:auto;min-width:150px}
+  .toast{position:fixed;bottom:28px;right:28px;background:#00ff9d;color:#000;padding:14px 24px;
+    border-radius:6px;font-size:14px;letter-spacing:1px;z-index:9999;display:none;
+    font-family:'Courier New',monospace;font-weight:700;box-shadow:0 4px 20px #00ff9d44}
+  .empty-msg{text-align:center;color:#444;padding:36px;font-size:15px;letter-spacing:1px}
+  .section-title{font-size:18px;color:#fff;letter-spacing:2px;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid #1e1e1e}
+  .kv{color:#00ff9d}
+  .cost-v{color:#ffaa00}
+  .del-btn{background:#ff444412;border:1px solid #ff444444;color:#ff6666;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:13px;font-family:'Courier New',monospace}
+  .del-btn:hover{background:#ff444422}
+  @media(max-width:700px){.form-row{grid-template-columns:1fr}.grid-4{grid-template-columns:1fr 1fr}}
+  .sync-bar{background:#111;border-bottom:1px solid #1a1a1a;padding:6px 28px;display:flex;align-items:center;gap:10px;font-size:12px;color:#555;letter-spacing:1px}
+  .sync-dot{width:8px;height:8px;border-radius:50%;background:#555;display:inline-block;flex-shrink:0}
+  .sync-dot.connected{background:#00ff9d;box-shadow:0 0 6px #00ff9d66}
+  .sync-dot.error{background:#ff4444}
+  .sync-dot.loading{background:#ffaa00;animation:pulse-dot 1s infinite}
+  @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}
+  .import-drop-zone{border:2px dashed #2e2e2e;border-radius:8px;padding:36px;text-align:center;cursor:pointer;transition:all .2s;background:#0a0a0a}
+  .import-drop-zone:hover,.import-drop-zone.drag-over{border-color:#00ff9d66;background:#00ff9d08}
+  .badge-ok{background:#00ff9d15;color:#00ff9d;border:1px solid #00ff9d33;padding:2px 8px;border-radius:3px;font-size:12px}
+  .badge-warn{background:#ffaa0015;color:#ffaa00;border:1px solid #ffaa0033;padding:2px 8px;border-radius:3px;font-size:12px}
+  .badge-err{background:#ff444415;color:#ff6666;border:1px solid #ff444433;padding:2px 8px;border-radius:3px;font-size:12px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    <div class="logo-text">
+      <h1>PICHET CONTROL FL</h1>
+      <p>FORKLIFT ENERGY MANAGEMENT SYSTEM</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="hdate" id="hdate"></div>
+    <div class="htime" id="htime"></div>
+  </div>
+</div>
+
+<div class="nav">
+  <button class="nav-btn active" onclick="showSection('dashboard',this)">🏠 แดชบอร์ด</button>
+  <button class="nav-btn" onclick="showSection('record',this)">➕ บันทึกข้อมูล</button>
+  <button class="nav-btn" onclick="showSection('daily',this)">📅 สรุปรายวัน</button>
+  <button class="nav-btn" onclick="showSection('monthly',this)">📊 สรุปรายเดือน</button>
+  <button class="nav-btn" onclick="showSection('percar',this)">🚛 รายงานต่อคัน</button>
+  <button class="nav-btn" onclick="showSection('charts',this)">📈 กราฟเปรียบเทียบ</button>
+</div>
+
+<div class="sync-bar">
+  <span class="sync-dot loading" id="sync-dot"></span>
+  <span id="sync-status">กำลังเชื่อมต่อ Firebase...</span>
+  <span style="margin-left:auto;color:#333" id="sync-count"></span>
+</div>
+<div class="content">
+
+<!-- ===== DASHBOARD ===== -->
+<div class="section active" id="sec-dashboard">
+  <div class="section-title">📋 ภาพรวมระบบ</div>
+  <p style="font-size:10px;color:#444;margin-bottom:14px;letter-spacing:1px">ข้อมูลวันนี้</p>
+  <div class="grid-4">
+    <div class="metric-card green"><div class="metric-label">⚡ kWh วันนี้</div><div class="metric-value kv" id="m-kwh-today">0</div><div class="metric-unit">กิโลวัตต์-ชั่วโมง</div></div>
+    <div class="metric-card amber"><div class="metric-label">💰 ค่าไฟวันนี้</div><div class="metric-value cost-v" id="m-cost-today">0</div><div class="metric-unit">บาท</div></div>
+    <div class="metric-card blue"><div class="metric-label">⏱ ชั่วโมงวันนี้</div><div class="metric-value" id="m-hrs-today">0</div><div class="metric-unit">ชั่วโมง</div></div>
+    <div class="metric-card red"><div class="metric-label">📋 รายการวันนี้</div><div class="metric-value" id="m-rec-today">0</div><div class="metric-unit">รายการ</div></div>
+  </div>
+  <p style="font-size:10px;color:#444;margin-bottom:14px;letter-spacing:1px">สะสมทั้งหมด</p>
+  <div class="grid-4">
+    <div class="metric-card green"><div class="metric-label">⚡ kWh รวมทั้งหมด</div><div class="metric-value kv" id="m-kwh-all">0</div><div class="metric-unit">กิโลวัตต์-ชั่วโมง</div></div>
+    <div class="metric-card amber"><div class="metric-label">💰 ค่าไฟรวมทั้งหมด</div><div class="metric-value cost-v" id="m-cost-all">0</div><div class="metric-unit">บาท</div></div>
+    <div class="metric-card blue"><div class="metric-label">⏱ ชั่วโมงรวม</div><div class="metric-value" id="m-hrs-all">0</div><div class="metric-unit">ชั่วโมง</div></div>
+    <div class="metric-card red"><div class="metric-label">📋 รายการทั้งหมด</div><div class="metric-value" id="m-rec-all">0</div><div class="metric-unit">รายการ</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">🕒 รายการล่าสุด 10 รายการ</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>วันที่</th><th>เวลา</th><th>รถ</th><th>รหัส</th><th>ชื่อพนักงาน</th><th>ชั่วโมง</th><th>kWh</th><th>ค่าไฟ (฿)</th></tr></thead>
+        <tbody id="tbody-recent"><tr><td colspan="8" class="empty-msg">ยังไม่มีข้อมูล</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== RECORD ===== -->
+<div class="section" id="sec-record">
+  <div class="card">
+    <div class="card-title">✏️ บันทึกการใช้งานรถโฟร์คลิฟ</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>📅 วันที่ใช้งาน</label>
+        <input type="date" id="r-date">
+      </div>
+      <div class="form-group">
+        <label>🕐 เวลาที่บันทึก</label>
+        <input type="time" id="r-time">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>🚛 รถโฟร์คลิฟ</label>
+        <select id="r-car">
+          <option value="">-- เลือกรถ --</option>
+          <option>FL-EV-31</option><option>FL-EV-32</option><option>FL-EV-33</option>
+          <option>FL-EV-34</option><option>FL-EV-35</option><option>FL-EV-36</option>
+          <option>FL-EV-37</option><option>FL-EV-38</option><option>FL-EV-39</option><option>FL-EV-40</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>👷 พนักงานขับรถ</label>
+        <select id="r-emp">
+          <option value="">-- เลือกพนักงาน --</option>
+          <option value="036954">036954 - นาย สุรสิทธิ์ คงชื่น</option>
+          <option value="052232">052232 - นาย ธวัช อบเชย</option>
+          <option value="052260">052260 - นาย กรภัทร์ ทองเขียน</option>
+          <option value="052547">052547 - นาย ณรงค์ เตชนันท์</option>
+          <option value="052603">052603 - นาย สำรวย ปัญญาใส</option>
+          <option value="110347">110347 - นาย ธวัชชัย เนียมศิริ</option>
+          <option value="111062">111062 - นาย ธนพล แทนศิริ</option>
+          <option value="111084">111084 - นาย สุรเชษฐ กิตติวัฒน์สกุล</option>
+          <option value="111089">111089 - นาย ทอง ปันเมือง</option>
+          <option value="111171">111171 - นาย เสมอ จ่ากลาง</option>
+          <option value="111211">111211 - นาย อ๊อด บุญโต</option>
+          <option value="111240">111240 - นาย มนู สุวรรณะ</option>
+          <option value="111424">111424 - นาย จีรวัฒน์ คงมาก</option>
+          <option value="111450">111450 - นาย วิทวัส เริ่มเจริญ</option>
+          <option value="047225">047225 - นาย ฉลวย ปรังแดง</option>
+          <option value="015909">015909 - นาย สมบัติ แสงทอง</option>
+          <option value="023747">023747 - นาย เอกสิทธิ์ ศรีธรรม</option>
+          <option value="030114">030114 - นาย ฉันติ รัดแมต</option>
+          <option value="033373">033373 - นาย วสันต์ เทพดารักษ์</option>
+          <option value="047233">047233 - นาย สุทัย ปรังแดง</option>
+          <option value="051631">051631 - นาย มนูญ บุสาทิพย์</option>
+          <option value="052536">052536 - นาย สัญญา วังวงค์</option>
+          <option value="110047">110047 - นาย สมบัติ เกษโร</option>
+          <option value="110272">110272 - นาย บรรพต โหมดช้างใหญ่</option>
+          <option value="110551">110551 - นาย ทักษิณ ปลื้มจันอัด</option>
+          <option value="111025">111025 - นาย มารุต อบเชย</option>
+          <option value="111040">111040 - นาย สุธิมนต์ เนาวภา</option>
+          <option value="111248">111248 - นาย ฉัตรชัย มั่นคง</option>
+          <option value="111292">111292 - นาย มานพ ทองดี</option>
+          <option value="043687">043687 - นาย ภักดี อาษา</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>⏱ ชั่วโมงใช้งาน</label>
+        <input type="number" id="r-hrs" min="0" step="0.5" placeholder="เช่น 8.5">
+      </div>
+      <div class="form-group">
+        <label>⚡ จำนวน kWh ที่ใช้</label>
+        <input type="number" id="r-kwh" min="0" step="0.1" placeholder="เช่น 45.5">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>💰 ค่าไฟ (คำนวณอัตโนมัติ @ 5 ฿/kWh)</label>
+        <input type="text" id="r-cost" readonly placeholder="0.00 บาท">
+      </div>
+      <div class="form-group">
+        <label>📝 หมายเหตุ (ไม่บังคับ)</label>
+        <input type="text" id="r-note" placeholder="หมายเหตุเพิ่มเติม">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="saveRecord()">💾 บันทึกข้อมูล</button>
+      <button class="btn btn-secondary" onclick="clearForm()">🔄 ล้างฟอร์ม</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📂 นำเข้าข้อมูลจาก Excel</div>
+    <p style="font-size:13px;color:#666;margin-bottom:14px;letter-spacing:1px">รองรับไฟล์ .xlsx ที่มีคอลัมน์: <span style="color:#00ff9d">วันที่, เวลา, รถ, รหัสพนักงาน, ชื่อพนักงาน, ชั่วโมง, kWh, ค่าไฟ (บาท), หมายเหตุ</span></p>
+    <div class="import-drop-zone" id="drop-zone" onclick="document.getElementById('excel-file-input').click()"
+      ondragover="event.preventDefault();this.classList.add('drag-over')"
+      ondragleave="this.classList.remove('drag-over')"
+      ondrop="handleDrop(event)">
+      <div style="font-size:36px;margin-bottom:10px">📊</div>
+      <div style="font-size:15px;color:#aaa;letter-spacing:1px">คลิกหรือลากไฟล์ Excel มาวางที่นี่</div>
+      <div style="font-size:12px;color:#555;margin-top:8px">รองรับ .xlsx, .xls</div>
+    </div>
+    <input type="file" id="excel-file-input" accept=".xlsx,.xls" style="display:none" onchange="handleFileImport(this.files[0])">
+    <div id="import-preview" style="display:none;margin-top:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:14px;color:#00ff9d;letter-spacing:1px">📋 ตัวอย่างข้อมูล (<span id="preview-count">0</span> แถว)</div>
+        <div style="display:flex;gap:10px">
+          <label style="font-size:13px;color:#666;display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="import-overwrite" style="width:auto;background:none;border:none;padding:0">
+            <span>ล้างข้อมูลเดิมก่อนนำเข้า</span>
+          </label>
+        </div>
+      </div>
+      <div class="table-wrap" style="max-height:240px;overflow-y:auto">
+        <table>
+          <thead><tr><th>วันที่</th><th>เวลา</th><th>รถ</th><th>รหัส</th><th>ชื่อพนักงาน</th><th>ชั่วโมง</th><th>kWh</th><th>ค่าไฟ (฿)</th><th>หมายเหตุ</th><th>สถานะ</th></tr></thead>
+          <tbody id="tbody-preview"></tbody>
+        </table>
+      </div>
+      <div class="btn-row" style="margin-top:14px">
+        <button class="btn" onclick="confirmImport()">✅ นำเข้าข้อมูล</button>
+        <button class="btn btn-secondary" onclick="cancelImport()">❌ ยกเลิก</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📋 ข้อมูลทั้งหมด</div>
+    <div class="btn-row" style="margin-bottom:14px">
+      <button class="btn btn-excel" onclick="exportExcelAll()">📥 Export Excel ทั้งหมด</button>
+      <button class="btn btn-danger" onclick="clearAll()">🗑️ ล้างข้อมูลทั้งหมด</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>วันที่</th><th>เวลา</th><th>รถ</th><th>รหัส</th><th>ชื่อพนักงาน</th><th>ชั่วโมง</th><th>kWh</th><th>ค่าไฟ (฿)</th><th>หมายเหตุ</th><th>ลบ</th></tr></thead>
+        <tbody id="tbody-all"><tr><td colspan="10" class="empty-msg">ยังไม่มีข้อมูล</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DAILY ===== -->
+<div class="section" id="sec-daily">
+  <div class="card">
+    <div class="card-title">📅 สรุปรายวัน</div>
+    <div class="filter-row">
+      <div class="filter-group"><label>เลือกวันที่</label><input type="date" id="f-daily-date" style="min-width:150px"></div>
+      <button class="btn" onclick="renderDaily()">🔍 ค้นหา</button>
+      <button class="btn btn-excel" onclick="exportDailyExcel()">📥 Export Excel</button>
+    </div>
+    <div class="grid-4" id="daily-metrics"></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>รถ</th><th>รหัสพนักงาน</th><th>ชื่อพนักงาน</th><th>เวลา</th><th>ชั่วโมง</th><th>kWh</th><th>ค่าไฟ (฿)</th></tr></thead>
+        <tbody id="tbody-daily"><tr><td colspan="7" class="empty-msg">เลือกวันที่ต้องการดูข้อมูล</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MONTHLY ===== -->
+<div class="section" id="sec-monthly">
+  <div class="card">
+    <div class="card-title">📊 สรุปรายเดือน</div>
+    <div class="filter-row">
+      <div class="filter-group"><label>เลือกเดือน</label><input type="month" id="f-month" style="min-width:150px"></div>
+      <button class="btn" onclick="renderMonthly()">🔍 ค้นหา</button>
+      <button class="btn btn-excel" onclick="exportMonthlyExcel()">📥 Export Excel</button>
+    </div>
+    <div class="grid-4" id="monthly-metrics"></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>วันที่</th><th>จำนวนรายการ</th><th>ชั่วโมงรวม</th><th>kWh รวม</th><th>ค่าไฟรวม (฿)</th></tr></thead>
+        <tbody id="tbody-monthly"><tr><td colspan="5" class="empty-msg">เลือกเดือนที่ต้องการดูข้อมูล</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PER CAR ===== -->
+<div class="section" id="sec-percar">
+  <div class="card">
+    <div class="card-title">🚛 รายงานแยกต่อคัน</div>
+    <div class="filter-row">
+      <div class="filter-group">
+        <label>เลือกรถ</label>
+        <select id="f-car" style="min-width:130px">
+          <option value="">ทุกคัน</option>
+          <option>FL-EV-31</option><option>FL-EV-32</option><option>FL-EV-33</option>
+          <option>FL-EV-34</option><option>FL-EV-35</option><option>FL-EV-36</option>
+          <option>FL-EV-37</option><option>FL-EV-38</option><option>FL-EV-39</option><option>FL-EV-40</option>
+        </select>
+      </div>
+      <div class="filter-group"><label>ตั้งแต่วันที่</label><input type="date" id="f-car-from" style="min-width:140px"></div>
+      <div class="filter-group"><label>ถึงวันที่</label><input type="date" id="f-car-to" style="min-width:140px"></div>
+      <button class="btn" onclick="renderPerCar()">🔍 ค้นหา</button>
+      <button class="btn btn-excel" onclick="exportPerCarExcel()">📥 Export Excel</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>รถ</th><th>จำนวนรายการ</th><th>ชั่วโมงรวม</th><th>kWh รวม</th><th>ค่าไฟรวม (฿)</th><th>เฉลี่ย kWh/ครั้ง</th><th>เฉลี่ยชั่วโมง/ครั้ง</th></tr></thead>
+        <tbody id="tbody-percar"><tr><td colspan="7" class="empty-msg">กดค้นหาเพื่อดูข้อมูล</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CHARTS ===== -->
+<div class="section" id="sec-charts">
+  <div class="card">
+    <div class="card-title">📊 กราฟเปรียบเทียบ kWh แต่ละคัน</div>
+    <div class="chart-wrap"><canvas id="chart-kwh"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">💰 กราฟค่าใช้จ่ายแต่ละคัน (บาท)</div>
+    <div class="chart-wrap"><canvas id="chart-cost"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">⏱ กราฟชั่วโมงการใช้งานแต่ละคัน</div>
+    <div class="chart-wrap"><canvas id="chart-hrs"></canvas></div>
+  </div>
+</div>
+
+</div><!-- /content -->
+<div class="toast" id="toast"></div>
+
+<script>
+const CARS=['FL-EV-31','FL-EV-32','FL-EV-33','FL-EV-34','FL-EV-35',
+            'FL-EV-36','FL-EV-37','FL-EV-38','FL-EV-39','FL-EV-40'];
+const EMPMAP={
+  '036954':'นาย สุรสิทธิ์ คงชื่น','052232':'นาย ธวัช อบเชย',
+  '052260':'นาย กรภัทร์ ทองเขียน','052547':'นาย ณรงค์ เตชนันท์',
+  '052603':'นาย สำรวย ปัญญาใส','110347':'นาย ธวัชชัย เนียมศิริ',
+  '111062':'นาย ธนพล แทนศิริ','111084':'นาย สุรเชษฐ กิตติวัฒน์สกุล',
+  '111089':'นาย ทอง ปันเมือง','111171':'นาย เสมอ จ่ากลาง',
+  '111211':'นาย อ๊อด บุญโต','111240':'นาย มนู สุวรรณะ',
+  '111424':'นาย จีรวัฒน์ คงมาก','111450':'นาย วิทวัส เริ่มเจริญ',
+  '047225':'นาย ฉลวย ปรังแดง','015909':'นาย สมบัติ แสงทอง',
+  '023747':'นาย เอกสิทธิ์ ศรีธรรม','030114':'นาย ฉันติ รัดแมต',
+  '033373':'นาย วสันต์ เทพดารักษ์','047233':'นาย สุทัย ปรังแดง',
+  '051631':'นาย มนูญ บุสาทิพย์','052536':'นาย สัญญา วังวงค์',
+  '110047':'นาย สมบัติ เกษโร','110272':'นาย บรรพต โหมดช้างใหญ่',
+  '110551':'นาย ทักษิณ ปลื้มจันอัด','111025':'นาย มารุต อบเชย',
+  '111040':'นาย สุธิมนต์ เนาวภา','111248':'นาย ฉัตรชัย มั่นคง',
+  '111292':'นาย มานพ ทองดี','043687':'นาย ภักดี อาษา'
+};
+const RATE=5;
+let records=[];
+let chartKwh=null,chartCost=null,chartHrs=null;
+
+function getToday(){return new Date().toISOString().slice(0,10)}
+function getNow(){return new Date().toTimeString().slice(0,5)}
+
+function init(){
+  document.getElementById('r-date').value=getToday();
+  document.getElementById('r-time').value=getNow();
+  document.getElementById('f-daily-date').value=getToday();
+  document.getElementById('f-month').value=new Date().toISOString().slice(0,7);
+  updateClock(); setInterval(updateClock,1000);
+  document.getElementById('r-kwh').addEventListener('input',autoCalcCost);
+  loadFromStorage(); // starts Firebase realtime listener
+}
+
+function updateClock(){
+  const n=new Date();
+  const opts={weekday:'long',year:'numeric',month:'long',day:'numeric'};
+  document.getElementById('hdate').textContent=n.toLocaleDateString('th-TH',opts);
+  document.getElementById('htime').textContent=n.toLocaleTimeString('th-TH');
+}
+
+function autoCalcCost(){
+  const kwh=parseFloat(document.getElementById('r-kwh').value)||0;
+  document.getElementById('r-cost').value=(kwh*RATE).toFixed(2)+' บาท';
+}
+
+function showSection(id,btn){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('sec-'+id).classList.add('active');
+  btn.classList.add('active');
+  if(id==='charts') setTimeout(renderCharts,150);
+  if(id==='dashboard') updateDashboard();
+}
+
+function showToast(msg,isErr){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.style.background=isErr?'#ff4444':'#00ff9d';
+  t.style.color=isErr?'#fff':'#000';
+  t.style.display='block';
+  setTimeout(()=>t.style.display='none',2800);
+}
+
+function saveRecord(){
+  const date=document.getElementById('r-date').value;
+  const time=document.getElementById('r-time').value;
+  const car=document.getElementById('r-car').value;
+  const emp=document.getElementById('r-emp').value;
+  const hrs=parseFloat(document.getElementById('r-hrs').value)||0;
+  const kwh=parseFloat(document.getElementById('r-kwh').value)||0;
+  const note=document.getElementById('r-note').value.trim();
+  if(!date||!time){showToast('❌ กรุณาเลือกวันที่และเวลา',true);return}
+  if(!car){showToast('❌ กรุณาเลือกรถ',true);return}
+  if(!emp){showToast('❌ กรุณาเลือกพนักงาน',true);return}
+  if(kwh<=0&&hrs<=0){showToast('❌ กรุณาระบุชั่วโมงหรือ kWh',true);return}
+  const cost=parseFloat((kwh*RATE).toFixed(2));
+  const rec={id:Date.now(),date,time,car,empId:emp,empName:EMPMAP[emp]||emp,hrs,kwh,cost,note};
+  const btn=document.querySelector('#sec-record .btn');
+  if(btn){btn.disabled=true;btn.textContent='⏳ กำลังบันทึก...'}
+  db.ref('pfl_records/'+rec.id).set(rec)
+    .then(()=>{showToast('✅ บันทึกสำเร็จ! ข้อมูลซิงค์แล้ว');clearForm();})
+    .catch(e=>{showToast('❌ บันทึกไม่สำเร็จ: '+e.message,true);})
+    .finally(()=>{if(btn){btn.disabled=false;btn.textContent='💾 บันทึกข้อมูล'}});
+}
+
+function clearForm(){
+  document.getElementById('r-car').value='';
+  document.getElementById('r-emp').value='';
+  document.getElementById('r-hrs').value='';
+  document.getElementById('r-kwh').value='';
+  document.getElementById('r-cost').value='';
+  document.getElementById('r-note').value='';
+  document.getElementById('r-date').value=getToday();
+  document.getElementById('r-time').value=getNow();
+}
+
+function deleteRecord(id){
+  if(!confirm('ยืนยันการลบรายการนี้?'))return;
+  db.ref('pfl_records/'+id).remove()
+    .then(()=>showToast('🗑️ ลบรายการแล้ว'))
+    .catch(e=>showToast('❌ ลบไม่สำเร็จ: '+e.message,true));
+}
+
+function clearAll(){
+  if(!confirm('⚠️ ยืนยันการลบข้อมูลทั้งหมด? ไม่สามารถกู้คืนได้'))return;
+  db.ref('pfl_records').remove()
+    .then(()=>showToast('🗑️ ล้างข้อมูลทั้งหมดแล้ว'))
+    .catch(e=>showToast('❌ ล้างไม่สำเร็จ: '+e.message,true));
+}
+
+// ===== FIREBASE SETUP =====
+const firebaseConfig = {
+  apiKey: "AIzaSyDZF9-J1KMOiBj4XKkjd2OEKfCqHkcH_c4",
+  authDomain: "pichet-forklift.firebaseapp.com",
+  databaseURL: "https://pichet-forklift-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "pichet-forklift",
+  storageBucket: "pichet-forklift.firebasestorage.app",
+  messagingSenderId: "850084295037",
+  appId: "1:850084295037:web:ce8c46bde285c97dd95c14"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+function setSyncStatus(state, msg, count){
+  const dot=document.getElementById('sync-dot');
+  const txt=document.getElementById('sync-status');
+  const cnt=document.getElementById('sync-count');
+  dot.className='sync-dot '+state;
+  txt.textContent=msg;
+  if(cnt&&count!==undefined) cnt.textContent=count+' รายการ';
+}
+
+function loadFromStorage(){
+  setSyncStatus('loading','กำลังโหลดข้อมูลจาก Firebase...');
+  db.ref('pfl_records').on('value',
+    snap=>{
+      records=[];
+      snap.forEach(child=>{ records.push(child.val()); });
+      records.sort((a,b)=>a.id-b.id);
+      renderAllTable(); updateDashboard();
+      setSyncStatus('connected','เชื่อมต่อแล้ว — ข้อมูลอัปเดตล่าสุด',records.length);
+    },
+    err=>{
+      setSyncStatus('error','❌ เชื่อมต่อไม่ได้: '+err.message);
+    }
+  );
+}
+
+function saveToStorage(){ /* ใช้ Firebase แทน localStorage แล้ว */ }
+
+function renderAllTable(){
+  const tb=document.getElementById('tbody-all');
+  if(!records.length){tb.innerHTML='<tr><td colspan="10" class="empty-msg">ยังไม่มีข้อมูล</td></tr>';return}
+  tb.innerHTML=records.slice().reverse().map(r=>`<tr>
+    <td>${r.date}</td>
+    <td>${r.time}</td>
+    <td><span class="badge badge-blue">${r.car}</span></td>
+    <td>${r.empId}</td>
+    <td>${r.empName}</td>
+    <td>${r.hrs.toFixed(1)}</td>
+    <td class="kv">${r.kwh.toFixed(2)}</td>
+    <td class="cost-v">${r.cost.toFixed(2)}</td>
+    <td style="color:#555">${r.note||'-'}</td>
+    <td><button class="del-btn" onclick="deleteRecord(${r.id})">✕ ลบ</button></td>
+  </tr>`).join('');
+}
+
+function updateDashboard(){
+  const today=getToday();
+  const td=records.filter(r=>r.date===today);
+  document.getElementById('m-kwh-today').textContent=td.reduce((a,r)=>a+r.kwh,0).toFixed(1);
+  document.getElementById('m-cost-today').textContent=td.reduce((a,r)=>a+r.cost,0).toFixed(0);
+  document.getElementById('m-hrs-today').textContent=td.reduce((a,r)=>a+r.hrs,0).toFixed(1);
+  document.getElementById('m-rec-today').textContent=td.length;
+  document.getElementById('m-kwh-all').textContent=records.reduce((a,r)=>a+r.kwh,0).toFixed(1);
+  document.getElementById('m-cost-all').textContent=records.reduce((a,r)=>a+r.cost,0).toFixed(0);
+  document.getElementById('m-hrs-all').textContent=records.reduce((a,r)=>a+r.hrs,0).toFixed(1);
+  document.getElementById('m-rec-all').textContent=records.length;
+  const tb=document.getElementById('tbody-recent');
+  const last10=records.slice().reverse().slice(0,10);
+  if(!last10.length){tb.innerHTML='<tr><td colspan="8" class="empty-msg">ยังไม่มีข้อมูล</td></tr>';return}
+  tb.innerHTML=last10.map(r=>`<tr>
+    <td>${r.date}</td><td>${r.time}</td>
+    <td><span class="badge badge-blue">${r.car}</span></td>
+    <td>${r.empId}</td><td>${r.empName}</td>
+    <td>${r.hrs.toFixed(1)}</td>
+    <td class="kv">${r.kwh.toFixed(2)}</td>
+    <td class="cost-v">${r.cost.toFixed(2)}</td>
+  </tr>`).join('');
+}
+
+function renderDaily(){
+  const d=document.getElementById('f-daily-date').value;
+  if(!d){showToast('กรุณาเลือกวันที่',true);return}
+  const recs=records.filter(r=>r.date===d);
+  const tb=document.getElementById('tbody-daily');
+  const dm=document.getElementById('daily-metrics');
+  if(!recs.length){
+    tb.innerHTML='<tr><td colspan="7" class="empty-msg">ไม่มีข้อมูลในวันที่เลือก</td></tr>';
+    dm.innerHTML='';return;
+  }
+  const tkwh=recs.reduce((a,r)=>a+r.kwh,0);
+  const tcost=recs.reduce((a,r)=>a+r.cost,0);
+  const thrs=recs.reduce((a,r)=>a+r.hrs,0);
+  dm.innerHTML=`
+    <div class="metric-card green"><div class="metric-label">⚡ kWh รวม</div><div class="metric-value kv">${tkwh.toFixed(1)}</div></div>
+    <div class="metric-card amber"><div class="metric-label">💰 ค่าไฟรวม</div><div class="metric-value cost-v">${tcost.toFixed(0)}</div><div class="metric-unit">บาท</div></div>
+    <div class="metric-card blue"><div class="metric-label">⏱ ชั่วโมงรวม</div><div class="metric-value">${thrs.toFixed(1)}</div></div>
+    <div class="metric-card red"><div class="metric-label">📋 รายการ</div><div class="metric-value">${recs.length}</div></div>`;
+  tb.innerHTML=recs.map(r=>`<tr>
+    <td><span class="badge badge-blue">${r.car}</span></td>
+    <td>${r.empId}</td><td>${r.empName}</td><td>${r.time}</td>
+    <td>${r.hrs.toFixed(1)}</td>
+    <td class="kv">${r.kwh.toFixed(2)}</td>
+    <td class="cost-v">${r.cost.toFixed(2)}</td>
+  </tr>`).join('');
+}
+
+function renderMonthly(){
+  const m=document.getElementById('f-month').value;
+  if(!m){showToast('กรุณาเลือกเดือน',true);return}
+  const recs=records.filter(r=>r.date.startsWith(m));
+  const tb=document.getElementById('tbody-monthly');
+  const mm=document.getElementById('monthly-metrics');
+  if(!recs.length){
+    tb.innerHTML='<tr><td colspan="5" class="empty-msg">ไม่มีข้อมูลในเดือนที่เลือก</td></tr>';
+    mm.innerHTML='';return;
+  }
+  const days={};
+  recs.forEach(r=>{
+    if(!days[r.date])days[r.date]={date:r.date,count:0,hrs:0,kwh:0,cost:0};
+    days[r.date].count++;days[r.date].hrs+=r.hrs;
+    days[r.date].kwh+=r.kwh;days[r.date].cost+=r.cost;
+  });
+  const tkwh=recs.reduce((a,r)=>a+r.kwh,0);
+  const tcost=recs.reduce((a,r)=>a+r.cost,0);
+  const thrs=recs.reduce((a,r)=>a+r.hrs,0);
+  mm.innerHTML=`
+    <div class="metric-card green"><div class="metric-label">⚡ kWh รวม</div><div class="metric-value kv">${tkwh.toFixed(1)}</div></div>
+    <div class="metric-card amber"><div class="metric-label">💰 ค่าไฟรวม</div><div class="metric-value cost-v">${tcost.toFixed(0)}</div><div class="metric-unit">บาท</div></div>
+    <div class="metric-card blue"><div class="metric-label">⏱ ชั่วโมงรวม</div><div class="metric-value">${thrs.toFixed(1)}</div></div>
+    <div class="metric-card red"><div class="metric-label">📋 รายการ</div><div class="metric-value">${recs.length}</div></div>`;
+  tb.innerHTML=Object.values(days).sort((a,b)=>a.date.localeCompare(b.date)).map(d=>`<tr>
+    <td>${d.date}</td><td>${d.count}</td>
+    <td>${d.hrs.toFixed(1)}</td>
+    <td class="kv">${d.kwh.toFixed(2)}</td>
+    <td class="cost-v">${d.cost.toFixed(2)}</td>
+  </tr>`).join('');
+}
+
+function renderPerCar(){
+  const car=document.getElementById('f-car').value;
+  const from=document.getElementById('f-car-from').value;
+  const to=document.getElementById('f-car-to').value;
+  let recs=records;
+  if(car) recs=recs.filter(r=>r.car===car);
+  if(from) recs=recs.filter(r=>r.date>=from);
+  if(to) recs=recs.filter(r=>r.date<=to);
+  const tb=document.getElementById('tbody-percar');
+  const carList=car?[car]:CARS;
+  const carsData={};
+  carList.forEach(c=>carsData[c]={car:c,count:0,hrs:0,kwh:0,cost:0});
+  recs.forEach(r=>{if(carsData[r.car]){carsData[r.car].count++;carsData[r.car].hrs+=r.hrs;carsData[r.car].kwh+=r.kwh;carsData[r.car].cost+=r.cost}});
+  const rows=Object.values(carsData);
+  tb.innerHTML=rows.map(c=>`<tr>
+    <td><span class="badge badge-blue">${c.car}</span></td>
+    <td>${c.count}</td>
+    <td>${c.hrs.toFixed(1)}</td>
+    <td class="kv">${c.kwh.toFixed(2)}</td>
+    <td class="cost-v">${c.cost.toFixed(2)}</td>
+    <td>${c.count>0?(c.kwh/c.count).toFixed(2):'0.00'}</td>
+    <td>${c.count>0?(c.hrs/c.count).toFixed(1):'0.0'}</td>
+  </tr>`).join('');
+}
+
+function renderCharts(){
+  const carData={};
+  CARS.forEach(c=>carData[c]={kwh:0,cost:0,hrs:0});
+  records.forEach(r=>{if(carData[r.car]){carData[r.car].kwh+=r.kwh;carData[r.car].cost+=r.cost;carData[r.car].hrs+=r.hrs}});
+  const labels=CARS.map(c=>c.replace('FL-EV-','EV-'));
+  const kwhData=CARS.map(c=>parseFloat(carData[c].kwh.toFixed(2)));
+  const costData=CARS.map(c=>parseFloat(carData[c].cost.toFixed(2)));
+  const hrsData=CARS.map(c=>parseFloat(carData[c].hrs.toFixed(1)));
+  const colors=['#00ff9d','#00ddff','#00aaff','#0077ff','#5500ff','#aa00ff','#ff00aa','#ff4444','#ff7700','#ffaa00'];
+  const gridColor='rgba(255,255,255,0.05)';
+  const tickColor='#555';
+  const opts=(label)=>({
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a1a1a',titleColor:'#fff',bodyColor:'#aaa',borderColor:'#333',borderWidth:1}},
+    scales:{
+      x:{ticks:{color:tickColor,font:{size:10}},grid:{color:gridColor}},
+      y:{ticks:{color:tickColor},grid:{color:gridColor},beginAtZero:true}
+    }
+  });
+  if(chartKwh){chartKwh.destroy();}
+  chartKwh=new Chart(document.getElementById('chart-kwh'),{
+    type:'bar',data:{labels,datasets:[{label:'kWh',data:kwhData,backgroundColor:colors,borderRadius:5,borderSkipped:false}]},
+    options:opts('kWh')
+  });
+  if(chartCost){chartCost.destroy();}
+  chartCost=new Chart(document.getElementById('chart-cost'),{
+    type:'bar',data:{labels,datasets:[{label:'ค่าไฟ (฿)',data:costData,backgroundColor:colors,borderRadius:5,borderSkipped:false}]},
+    options:opts('฿')
+  });
+  if(chartHrs){chartHrs.destroy();}
+  chartHrs=new Chart(document.getElementById('chart-hrs'),{
+    type:'bar',data:{labels,datasets:[{label:'ชั่วโมง',data:hrsData,backgroundColor:colors,borderRadius:5,borderSkipped:false}]},
+    options:opts('ชั่วโมง')
+  });
+}
+
+function makeExcel(wsData,sheetName,filename){
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  const colWidths=wsData[0].map((_,i)=>({wch:Math.max(...wsData.map(r=>(r[i]||'').toString().length))+4}));
+  ws['!cols']=colWidths;
+  XLSX.utils.book_append_sheet(wb,ws,sheetName);
+  XLSX.writeFile(wb,filename);
+  showToast('📥 ดาวน์โหลด Excel สำเร็จ!');
+}
+
+function exportExcelAll(){
+  if(!records.length){showToast('ไม่มีข้อมูล',true);return}
+  const header=['วันที่','เวลา','รถ','รหัสพนักงาน','ชื่อพนักงาน','ชั่วโมง','kWh','ค่าไฟ (บาท)','หมายเหตุ'];
+  const rows=records.map(r=>[r.date,r.time,r.car,r.empId,r.empName,r.hrs,r.kwh,r.cost,r.note||'']);
+  const sum=['รวมทั้งหมด','','','','',
+    records.reduce((a,r)=>a+r.hrs,0).toFixed(1),
+    records.reduce((a,r)=>a+r.kwh,0).toFixed(2),
+    records.reduce((a,r)=>a+r.cost,0).toFixed(2),''];
+  makeExcel([header,...rows,[],sum],'ข้อมูลทั้งหมด','PichetFL_ทั้งหมด.xlsx');
+}
+
+function exportDailyExcel(){
+  const d=document.getElementById('f-daily-date').value;
+  const recs=records.filter(r=>r.date===d);
+  if(!recs.length){showToast('ไม่มีข้อมูล',true);return}
+  const header=['วันที่','เวลา','รถ','รหัสพนักงาน','ชื่อพนักงาน','ชั่วโมง','kWh','ค่าไฟ (บาท)'];
+  const rows=recs.map(r=>[r.date,r.time,r.car,r.empId,r.empName,r.hrs,r.kwh,r.cost]);
+  const sum=['รวม','','','','',
+    recs.reduce((a,r)=>a+r.hrs,0).toFixed(1),
+    recs.reduce((a,r)=>a+r.kwh,0).toFixed(2),
+    recs.reduce((a,r)=>a+r.cost,0).toFixed(2)];
+  makeExcel([header,...rows,[],sum],'รายวัน',`PichetFL_รายวัน_${d}.xlsx`);
+}
+
+function exportMonthlyExcel(){
+  const m=document.getElementById('f-month').value;
+  const recs=records.filter(r=>r.date.startsWith(m));
+  if(!recs.length){showToast('ไม่มีข้อมูล',true);return}
+  const header=['วันที่','รถ','รหัสพนักงาน','ชื่อพนักงาน','ชั่วโมง','kWh','ค่าไฟ (บาท)'];
+  const rows=recs.map(r=>[r.date,r.car,r.empId,r.empName,r.hrs,r.kwh,r.cost]);
+  const sum=['รวม','','','',
+    recs.reduce((a,r)=>a+r.hrs,0).toFixed(1),
+    recs.reduce((a,r)=>a+r.kwh,0).toFixed(2),
+    recs.reduce((a,r)=>a+r.cost,0).toFixed(2)];
+  makeExcel([header,...rows,[],sum],'รายเดือน',`PichetFL_รายเดือน_${m}.xlsx`);
+}
+
+function exportPerCarExcel(){
+  const carData={};
+  CARS.forEach(c=>carData[c]={car:c,count:0,hrs:0,kwh:0,cost:0});
+  records.forEach(r=>{if(carData[r.car]){carData[r.car].count++;carData[r.car].hrs+=r.hrs;carData[r.car].kwh+=r.kwh;carData[r.car].cost+=r.cost}});
+  const header=['รถ','จำนวนรายการ','ชั่วโมงรวม','kWh รวม','ค่าไฟรวม (บาท)','เฉลี่ย kWh/ครั้ง','เฉลี่ยชั่วโมง/ครั้ง'];
+  const rows=CARS.map(c=>[
+    c,carData[c].count,
+    carData[c].hrs.toFixed(1),carData[c].kwh.toFixed(2),carData[c].cost.toFixed(2),
+    carData[c].count>0?(carData[c].kwh/carData[c].count).toFixed(2):0,
+    carData[c].count>0?(carData[c].hrs/carData[c].count).toFixed(1):0
+  ]);
+  makeExcel([header,...rows],'รายงานต่อคัน','PichetFL_รายงานต่อคัน.xlsx');
+}
+
+
+// ===== IMPORT EXCEL =====
+let importBuffer = [];
+
+function handleDrop(e){
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if(file) handleFileImport(file);
+}
+
+function handleFileImport(file){
+  if(!file) return;
+  if(!/\.(xlsx|xls)$/i.test(file.name)){showToast('❌ รองรับเฉพาะไฟล์ .xlsx หรือ .xls เท่านั้น',true);return;}
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    try{
+      const data = new Uint8Array(ev.target.result);
+      const wb = XLSX.read(data, {type:'array', cellDates:false});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      // raw:true keeps numbers as numbers, not strings
+      const rows = XLSX.utils.sheet_to_json(ws, {raw:true, defval:''});
+      parseImportRows(rows);
+    }catch(err){
+      showToast('❌ อ่านไฟล์ไม่ได้: '+err.message, true);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  document.getElementById('excel-file-input').value='';
+}
+
+function normalizeDate(val){
+  if(val===null||val===undefined||val==='') return '';
+  // Excel serial date number
+  if(typeof val === 'number'){
+    const d = new Date(Math.round((val - 25569)*86400*1000));
+    return d.toISOString().slice(0,10);
+  }
+  const s = String(val).trim();
+  if(!s) return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // dd/mm/yyyy
+  const m1 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m1) return m1[3]+'-'+m1[2].padStart(2,'0')+'-'+m1[1].padStart(2,'0');
+  const d = new Date(s);
+  if(!isNaN(d)) return d.toISOString().slice(0,10);
+  return s;
+}
+
+function normalizeTime(val){
+  if(val===null||val===undefined||val==='') return '00:00';
+  // Excel time as decimal fraction of day
+  if(typeof val === 'number' && val >= 0 && val < 1){
+    const totalMin = Math.round(val * 1440);
+    const h = Math.floor(totalMin/60), m = totalMin%60;
+    return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+  }
+  const s = String(val).trim();
+  if(/^\d{1,2}:\d{2}/.test(s)) return s.slice(0,5);
+  return '00:00';
+}
+
+function findColKey(row, candidates){
+  // Get all actual keys from row
+  const rowKeys = Object.keys(row);
+  for(const candidate of candidates){
+    // exact match first
+    if(row[candidate] !== undefined) return candidate;
+    // case-insensitive + trim match
+    const cl = candidate.toLowerCase().trim();
+    const found = rowKeys.find(k => k.toLowerCase().trim() === cl);
+    if(found !== undefined) return found;
+  }
+  return null;
+}
+
+function parseImportRows(rawRows){
+  importBuffer = [];
+
+  // Skip completely empty rows and summary rows (รวม/total rows)
+  const rows = rawRows.filter(row => {
+    const vals = Object.values(row).map(v=>String(v).trim());
+    const allEmpty = vals.every(v=>v===''||v==='0');
+    if(allEmpty) return false;
+    // skip rows where first non-empty value is a summary label
+    const firstVal = vals.find(v=>v!=='') || '';
+    if(/^รวม|^total|^sum/i.test(firstVal)) return false;
+    return true;
+  });
+
+  if(!rows.length){showToast('❌ ไม่พบข้อมูลในไฟล์',true);return;}
+
+  // Debug: log first row keys to console
+  console.log('Excel columns found:', Object.keys(rows[0]));
+
+  const colDef = {
+    date:    ['วันที่','date','Date','DATE'],
+    time:    ['เวลา','time','Time','TIME'],
+    car:     ['รถ','car','Car','รถโฟร์คลิฟ','forklift'],
+    empId:   ['รหัสพนักงาน','รหัส','empId','emp_id','employee_id'],
+    empName: ['ชื่อพนักงาน','ชื่อ','empName','emp_name','employee_name'],
+    hrs:     ['ชั่วโมง','hrs','hours','Hours','HOURS'],
+    kwh:     ['kWh','kwh','KWH','พลังงาน kWh','energy'],
+    cost:    ['ค่าไฟ (บาท)','ค่าไฟ(บาท)','ค่าไฟ','cost','Cost','COST'],
+    note:    ['หมายเหตุ','note','Note','NOTE','remark']
+  };
+
+  let ok=0, warn=0, err=0;
+
+  const preview = rows.map((row, i) => {
+    const dK   = findColKey(row, colDef.date);
+    const tK   = findColKey(row, colDef.time);
+    const cK   = findColKey(row, colDef.car);
+    const eIK  = findColKey(row, colDef.empId);
+    const eNK  = findColKey(row, colDef.empName);
+    const hK   = findColKey(row, colDef.hrs);
+    const kK   = findColKey(row, colDef.kwh);
+    const coK  = findColKey(row, colDef.cost);
+    const nK   = findColKey(row, colDef.note);
+
+    const rawDate = dK ? row[dK] : '';
+    const rawTime = tK ? row[tK] : '';
+    const car     = cK ? String(row[cK]).trim() : '';
+    const empId   = eIK ? String(row[eIK]).replace(/\.0+$/,'').trim() : '';
+    const empName = eNK ? String(row[eNK]).trim() : (EMPMAP[empId]||'');
+    const hrs     = hK  ? (parseFloat(row[hK])||0) : 0;
+    const kwh     = kK  ? (parseFloat(row[kK])||0) : 0;
+    const calcCost = parseFloat((kwh*RATE).toFixed(2));
+    const cost    = coK ? (parseFloat(row[coK])||calcCost) : calcCost;
+    const note    = nK  ? String(row[nK]).trim() : '';
+
+    const date = normalizeDate(rawDate);
+    const time = normalizeTime(rawTime);
+
+    // Determine status
+    let status = 'ok';
+    let badge  = '<span class="badge-ok">✓ พร้อม</span>';
+
+    if(!date || !car || kwh <= 0){
+      status = 'err'; err++;
+      badge = '<span class="badge-err">✕ ข้อมูลไม่ครบ</span>';
+    } else if(!empId && !empName){
+      status = 'warn'; warn++;
+      badge = '<span class="badge-warn">⚠ ไม่มีพนักงาน</span>';
+    } else {
+      ok++;
+    }
+
+    importBuffer.push({id: Date.now()+i, date, time, car, empId, empName, hrs, kwh, cost, note, _status: status});
+
+    const carBadge = car ? '<span class="badge badge-blue">'+car+'</span>' : '<span style="color:#ff6666">?</span>';
+    return '<tr>'
+      +'<td>'+(date||'<span style="color:#ff6666">-</span>')+'</td>'
+      +'<td>'+time+'</td>'
+      +'<td>'+carBadge+'</td>'
+      +'<td>'+(empId||'-')+'</td>'
+      +'<td>'+(empName||'-')+'</td>'
+      +'<td>'+hrs.toFixed(1)+'</td>'
+      +'<td class="kv">'+kwh.toFixed(2)+'</td>'
+      +'<td class="cost-v">'+cost.toFixed(2)+'</td>'
+      +'<td style="color:#555">'+(note||'-')+'</td>'
+      +'<td>'+badge+'</td>'
+      +'</tr>';
+  });
+
+  document.getElementById('tbody-preview').innerHTML = preview.join('');
+  document.getElementById('preview-count').textContent =
+    rows.length+' แถว | ✓ '+ok+' | ⚠ '+warn+' | ✕ '+err+' (แถวสรุป/ว่างถูกข้ามอัตโนมัติ)';
+  document.getElementById('import-preview').style.display = 'block';
+  document.getElementById('drop-zone').style.display = 'none';
+}
+
+function confirmImport(){
+  // Allow both ok and warn rows; only skip err rows
+  const validRecs = importBuffer.filter(r => r._status !== 'err');
+  if(!validRecs.length){showToast('❌ ไม่มีข้อมูลที่นำเข้าได้ (ทุกแถวมีข้อมูลไม่ครบ)',true);return;}
+  const skipped = importBuffer.length - validRecs.length;
+  const overwrite = document.getElementById('import-overwrite').checked;
+  const msg = overwrite
+    ? '⚠️ ล้างข้อมูลเดิมทั้งหมด แล้วนำเข้า '+validRecs.length+' รายการ'+(skipped?' (ข้าม '+skipped+' แถวผิดพลาด)':'')+'?'
+    : 'นำเข้า '+validRecs.length+' รายการ'+(skipped?' (ข้าม '+skipped+' แถวผิดพลาด)':'')+'?';
+  if(!confirm(msg)) return;
+  if(overwrite) records = [];
+  validRecs.forEach(r => { delete r._status; records.push(r); });
+  saveToStorage(); renderAllTable(); updateDashboard();
+  showToast('✅ นำเข้าสำเร็จ '+validRecs.length+' รายการ!');
+  cancelImport();
+}
+
+function cancelImport(){
+  importBuffer = [];
+  document.getElementById('import-preview').style.display = 'none';
+  document.getElementById('drop-zone').style.display = 'block';
+}
+init();
+</script>
+</body>
+</html>
